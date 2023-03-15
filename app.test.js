@@ -101,10 +101,13 @@ describe("Blockchain test", () => {
 		expect(response3.statusCode).toBe(200);
 		const stars = response3.body;
 		expect(stars.length).toBe(1);
-		expect(stars[0]).toEqual(STAR_SIRIUS);
+		expect(stars[0]).toEqual({
+			owner: address,
+			star: STAR_SIRIUS
+		});
 	});
 
-	test("Submit one star successfully", async () => {
+	test("Submit one star fails with stale timestamp", async () => {
 		const keyPair = bitcoin.ECPair.makeRandom();
 
 		// First step, call /requestValidation to get the message to be signed.
@@ -130,6 +133,35 @@ describe("Blockchain test", () => {
 		expect(response2.statusCode).toBe(500);
 	});
 
+	test("Submit one star fails after tampering", async () => {
+		const keyPair = bitcoin.ECPair.makeRandom();
+
+		// First step, call /requestValidation to get the message to be signed.
+		const response1 = await request(BASE_URL).post("/requestValidation").send({address: getAddress(keyPair)});
+		expect(response1.statusCode).toBe(200);
+		let message = response1.body;
+		// Modifies the message to be 10 minutes ago.
+		let messageTokens = message.split(":");
+		messageTokens[1] = (parseInt(messageTokens[1]) - 600).toString();
+		message = messageTokens.join(":");
+
+		// Signs the message with bitcoin private key
+		const { address } = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey });
+		const signature = bitcoinMessage.sign(message, keyPair.privateKey, keyPair.compressed).toString('base64');
+
+		// Tamper the genesis block
+		blockchain.chain[0].hash = "12345";
+
+		// Submits the star
+		const response2 = await request(BASE_URL).post("/submitstar").send({
+			message,
+			signature,
+			address,
+			star: STAR_SIRIUS
+		});
+		expect(response2.statusCode).toBe(500);
+	});
+
 	test("Multiple stars with different owners", async() => {
 		const keyPair1 = bitcoin.ECPair.makeRandom();
 		const keyPair2 = bitcoin.ECPair.makeRandom();
@@ -141,8 +173,8 @@ describe("Blockchain test", () => {
 		const stars1 = (await request(BASE_URL).get(`/blocks/${getAddress(keyPair1)}`)).body;
 		const stars2 = (await request(BASE_URL).get(`/blocks/${getAddress(keyPair2)}`)).body;
 
-		expect(stars1).toEqual([STAR_SIRIUS, STAR_BETELGEUSE]);
-		expect(stars2).toEqual([STAR_VEGA]);
+		expect(stars1).toEqual([{owner: getAddress(keyPair1), star: STAR_SIRIUS}, {owner: getAddress(keyPair1), star: STAR_BETELGEUSE}]);
+		expect(stars2).toEqual([{owner: getAddress(keyPair2), star: STAR_VEGA}]);
 	});
 
 	test("Get blocks by height", async () => {

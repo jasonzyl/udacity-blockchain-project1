@@ -78,6 +78,9 @@ class Blockchain {
      */
     async submitStar(address, message, signature, star) {
         await this.initialized;
+        if (!(await this.validateChain())) {
+            return null;
+        }
         if (!verifyTime(message)) {
             throw 'The message is more than 5 minutes stale';
         }
@@ -118,7 +121,13 @@ class Blockchain {
      */
     async getStarsByWalletAddress(address) {
         await this.initialized;
-        return this.chain.map(b => b.getBData()).filter(data => data.address === address).map(data => data.star);
+        return this.chain
+            .map(b => b.getBData())
+            .filter(data => data.address === address)
+            .map(data => ({
+                owner: address,
+                star: data.star
+            }));
     }
 
     /**

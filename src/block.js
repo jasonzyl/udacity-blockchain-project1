@@ -39,12 +39,8 @@ class Block {
 
     // Only hashes the 4 relevant attributes of a block, so the existence of the 'hash' field does not affect the hash when validating.
     static hashBlock(block) {
-        return SHA256(JSON.stringify({
-            height: block.height,
-            body: block.body,
-            time: block.time,
-            previousBlockHash: block.previousBlockHash,
-        })).toString();
+        // Using spread operator, suggested by previous reviewer.
+        return SHA256(JSON.stringify({...block, hash: null})).toString();
     }
 
 }
